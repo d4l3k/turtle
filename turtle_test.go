@@ -72,7 +72,7 @@ func TestParse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out, err := Parse(string(rdf))
+		out, err := Parse(rdf)
 		if err != nil {
 			t.Fatal(err)
 		}
