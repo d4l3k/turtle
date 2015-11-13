@@ -8,7 +8,7 @@ import (
 
 const (
 	iriURL    = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
-	stopRunes = " \n\t,;."
+	stopRunes = " \n\t,;"
 )
 
 type Triple struct {
@@ -138,6 +138,9 @@ func (p *parser) parseObj() (string, string, string) {
 		if c[i+1] == '@' {
 			c = p.c()
 			i := strings.IndexAny(c, stopRunes)
+			if c[i-1] == '.' {
+				i--
+			}
 			p.i += i
 			lang = c[1:i]
 		} else if c[i+1:i+3] == "^^" {
@@ -163,6 +166,9 @@ func (p *parser) parseObj() (string, string, string) {
 		return ",", "obj", ""
 	} else {
 		i := strings.IndexAny(c, stopRunes)
+		if c[i-1] == '.' {
+			i--
+		}
 		p.i += i
 		obj := c[:i]
 		psym := strings.IndexRune(obj, ':')
