@@ -22,6 +22,8 @@ const (
 	typePred
 	typeObj
 	typePrefix
+	typeBag
+	typeBagEnd
 )
 
 type Triple struct {
@@ -97,6 +99,7 @@ func (p *parser) parseExpr() error {
 		if typ != typeIRI {
 			return fmt.Errorf("triple subject needs to be iri. Found %#v", subj)
 		}
+		var origSubj string
 	Pred:
 		for {
 			pred, typ, _ := p.parseObj()
@@ -107,11 +110,28 @@ func (p *parser) parseExpr() error {
 			}
 			for {
 				obj, typ, lang := p.parseObj()
-				if typ == typeEnd || typ == typePred || typ == typeObj {
-					return fmt.Errorf("triple needs subject. Found %#v", obj)
+				if typ == typeBag {
+					p.skipWhitespace()
+
+					// set string for blank node
+					blankNodeId := "_:" + subj + "_" + pred
+					// add triple of subject -> pred -> <blank node string>
+					fmt.Println("Adding Triple: %v", Triple{subj, pred, blankNodeId, "", lang})
+					p.triples = append(p.triples, Triple{subj, pred, blankNodeId, "", lang})
+					// set that string as subject
+					origSubj = subj
+					subj = blankNodeId
+					break // start processing the children in the bag
+					// add all <blank node string> -> pred -> obj triples in the bag
 				}
+
+				if typ == typeEnd || typ == typePred || typ == typeObj || typ == typeUnknown {
+					return fmt.Errorf("triple needs subject. Found %#v with type %d", obj, typ)
+				}
+				fmt.Printf("Adding Triple Regular Way: { S: %s P: %s O: %s }\n", subj, pred, obj)
 				p.triples = append(p.triples, Triple{subj, pred, obj, "", lang})
 				ctrl, typ, _ := p.parseObj()
+
 				switch typ {
 				case typeEnd:
 					break Pred
@@ -119,8 +139,15 @@ func (p *parser) parseExpr() error {
 					continue Pred
 				case typeObj:
 					continue
+				case typeBagEnd:
+					subj = origSubj
+					if ctrl == "." {
+						break Pred
+					} else {
+						continue Pred
+					}
 				default:
-					return fmt.Errorf("triple expected control character. Found %#v", ctrl)
+					return fmt.Errorf("triple expected control character. Found %#v with type %d at %d", ctrl, typ, p.i)
 				}
 			}
 		}
@@ -132,6 +159,7 @@ func (p *parser) parseExpr() error {
 func (p *parser) parseObj() (string, objType, string) {
 	p.skipWhitespace()
 	c := p.c()
+	fmt.Printf("Processing: %v\n", string(p.c()[0:40]))
 	if c[0] == '"' || c[0] == '\'' {
 		i := 1
 	For:
@@ -177,6 +205,14 @@ func (p *parser) parseObj() (string, objType, string) {
 	} else if bytes.HasPrefix(c, []byte(",")) {
 		p.i += 1
 		return ",", typeObj, ""
+	} else if bytes.HasPrefix(c, []byte("];")) {
+		fmt.Println("returning typeBagEnd")
+		p.i += 2
+		return ";", typeBagEnd, ""
+	} else if bytes.HasPrefix(c, []byte("].")) {
+		fmt.Println("returning typeBagEnd")
+		p.i += 2
+		return ".", typeBagEnd, ""
 	} else {
 		i := bytes.IndexAny(c, stopRunes)
 		if c[i-1] == '.' {
@@ -185,6 +221,7 @@ func (p *parser) parseObj() (string, objType, string) {
 		p.i += i
 		obj := string(c[:i])
 		psym := strings.IndexRune(obj, ':')
+		bagSym := strings.IndexRune(obj, '[')
 		if psym != -1 {
 			if psym == len(obj)-1 {
 				return obj, typePrefix, ""
@@ -193,6 +230,11 @@ func (p *parser) parseObj() (string, objType, string) {
 			if expand, ok := p.prefix[prefix]; ok {
 				return expand + obj[psym+1:], typeIRI, ""
 			}
+		}
+		if bagSym != -1 {
+			p.i += bagSym
+			fmt.Printf("the object: %s\n", obj)
+			return "", typeBag, ""
 		}
 		return obj, typeUnknown, ""
 	}
