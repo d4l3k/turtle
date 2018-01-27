@@ -113,22 +113,18 @@ func (p *parser) parseExpr() error {
 				if typ == typeBag {
 					p.skipWhitespace()
 
-					// set string for blank node
 					blankNodeId := "_:" + subj + "_" + pred
 					// add triple of subject -> pred -> <blank node string>
-					fmt.Println("Adding Triple: %v", Triple{subj, pred, blankNodeId, "", lang})
 					p.triples = append(p.triples, Triple{subj, pred, blankNodeId, "", lang})
 					// set that string as subject
 					origSubj = subj
 					subj = blankNodeId
 					break // start processing the children in the bag
-					// add all <blank node string> -> pred -> obj triples in the bag
 				}
 
 				if typ == typeEnd || typ == typePred || typ == typeObj || typ == typeUnknown {
 					return fmt.Errorf("triple needs subject. Found %#v with type %d", obj, typ)
 				}
-				fmt.Printf("Adding Triple Regular Way: { S: %s P: %s O: %s }\n", subj, pred, obj)
 				p.triples = append(p.triples, Triple{subj, pred, obj, "", lang})
 				ctrl, typ, _ := p.parseObj()
 
@@ -159,7 +155,6 @@ func (p *parser) parseExpr() error {
 func (p *parser) parseObj() (string, objType, string) {
 	p.skipWhitespace()
 	c := p.c()
-	fmt.Printf("Processing: %v\n", string(p.c()[0:40]))
 	if c[0] == '"' || c[0] == '\'' {
 		i := 1
 	For:
@@ -206,11 +201,9 @@ func (p *parser) parseObj() (string, objType, string) {
 		p.i += 1
 		return ",", typeObj, ""
 	} else if bytes.HasPrefix(c, []byte("];")) {
-		fmt.Println("returning typeBagEnd")
 		p.i += 2
 		return ";", typeBagEnd, ""
 	} else if bytes.HasPrefix(c, []byte("].")) {
-		fmt.Println("returning typeBagEnd")
 		p.i += 2
 		return ".", typeBagEnd, ""
 	} else {
@@ -233,7 +226,6 @@ func (p *parser) parseObj() (string, objType, string) {
 		}
 		if bagSym != -1 {
 			p.i += bagSym
-			fmt.Printf("the object: %s\n", obj)
 			return "", typeBag, ""
 		}
 		return obj, typeUnknown, ""
